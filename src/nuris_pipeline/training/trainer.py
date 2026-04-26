@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import platform
 import random
 import shutil
 from typing import Any
@@ -370,14 +371,30 @@ def initialize_distributed_training() -> DistributedTrainingContext:
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     enabled = world_size > 1
     if enabled and not dist.is_initialized():
-        backend = "nccl" if torch.cuda.is_available() else "gloo"
-        dist.init_process_group(backend=backend, rank=rank, world_size=world_size)
+        backend = resolve_distributed_backend()
+        master_addr = os.environ.get("MASTER_ADDR")
+        master_port = os.environ.get("MASTER_PORT")
+        if not master_addr or not master_port:
+            raise ValueError("Distributed training requires MASTER_ADDR and MASTER_PORT to be set")
+        init_method = f"tcp://{master_addr}:{master_port}?use_libuv=0"
+        dist.init_process_group(
+            backend=backend,
+            rank=rank,
+            world_size=world_size,
+            init_method=init_method,
+        )
     return DistributedTrainingContext(enabled=enabled, rank=rank, world_size=world_size, local_rank=local_rank)
 
 
 def finalize_distributed_training(distributed: DistributedTrainingContext) -> None:
     if distributed.enabled and dist.is_initialized():
         dist.destroy_process_group()
+
+
+def resolve_distributed_backend() -> str:
+    if platform.system() == "Windows":
+        return "gloo"
+    return "nccl" if torch.cuda.is_available() else "gloo"
 
 
 def create_sampler(
