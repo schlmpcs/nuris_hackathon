@@ -1,0 +1,10 @@
+input:
+  scene_paths:
+    - data/input/example_scene.tif
+  aoi_path: data/input/example_aoi.geojson
+  zones_path: null
+
+model:
+  backend: heuristic
+  checkpoint: null
+  device: cpu

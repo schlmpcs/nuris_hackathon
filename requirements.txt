@@ -1,0 +1,11 @@
+affine
+click
+fiona
+geopandas
+numpy
+pandas
+pyproj
+pyyaml
+rasterio
+scikit-image
+shapely
