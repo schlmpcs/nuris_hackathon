@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 import numpy as np
@@ -42,11 +43,68 @@ class HeuristicSegmentationModel:
         }
 
 
+@dataclass
+class TorchCheckpointSegmentationModel:
+    model: object
+    class_names: tuple[str, ...]
+    image_mean: tuple[float, float, float]
+    image_std: tuple[float, float, float]
+    device: str
+
+    def predict(self, tile_array: np.ndarray) -> dict[str, np.ndarray]:
+        import torch
+
+        arr = tile_array.astype(np.float32)
+        if arr.ndim != 3:
+            raise ValueError(f"Expected CHW tile array, got shape {arr.shape}")
+        if arr.max() > 1.0:
+            arr = arr / 255.0
+
+        rgb = arr[:3]
+        normalized = (rgb - np.asarray(self.image_mean, dtype=np.float32)[:, None, None]) / np.asarray(
+            self.image_std,
+            dtype=np.float32,
+        )[:, None, None]
+        tensor = torch.from_numpy(normalized).unsqueeze(0).to(self.device)
+
+        self.model.eval()
+        with torch.no_grad():
+            logits = self.model(tensor)
+            probabilities = torch.softmax(logits, dim=1).squeeze(0).cpu().numpy()
+
+        output: dict[str, np.ndarray] = {}
+        for index, class_name in enumerate(self.class_names):
+            if class_name == "background":
+                continue
+            output[class_name] = probabilities[index]
+        return output
+
+
 def load_model(backend: str, checkpoint: str | None = None, device: str = "cpu") -> SegmentationModel:
     if backend == "heuristic":
         return HeuristicSegmentationModel()
+    if backend == "torch_unet":
+        if not checkpoint:
+            raise ValueError("The 'torch_unet' backend requires a checkpoint path")
+
+        import torch
+
+        from nuris_pipeline.training.models import create_segmentation_model
+
+        checkpoint_path = Path(checkpoint)
+        payload = torch.load(checkpoint_path, map_location=device)
+        model = create_segmentation_model(payload["model_name"], num_classes=payload["num_classes"])
+        model.load_state_dict(payload["model_state_dict"])
+        model.to(device)
+        class_names = tuple(payload["class_names"])
+        return TorchCheckpointSegmentationModel(
+            model=model,
+            class_names=class_names,
+            image_mean=tuple(payload["image_mean"]),
+            image_std=tuple(payload["image_std"]),
+            device=device,
+        )
 
     raise ValueError(
-        f"Unsupported backend '{backend}'. v1 ships with the 'heuristic' baseline; "
-        "pretrained checkpoints can be integrated later through this registry."
+        f"Unsupported backend '{backend}'. Supported backends: heuristic, torch_unet"
     )

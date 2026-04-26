@@ -11,13 +11,19 @@ dataset:
     3: road
 
 training:
-  model_name: deeplabv3_resnet50
-  encoder_weights: imagenet
+  model_name: unet
   batch_size: 8
   num_workers: 4
   learning_rate: 0.0001
   epochs: 20
   device: cuda
+  seed: 42
+
+augmentation:
+  horizontal_flip: true
+  vertical_flip: true
+  rotate_90: true
+  color_jitter: 0.1
 
 export:
   checkpoint_dir: outputs/checkpoints

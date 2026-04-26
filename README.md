@@ -20,31 +20,32 @@ The current model backend is a heuristic baseline. The code is structured so pre
 Install dependencies:
 
 ```powershell
-python -m pip install -r requirements.txt
+py -3.11 -m pip install -r requirements.txt
 ```
 
 Download `LandCover.ai` from Hugging Face:
 
 ```powershell
-python -m pip install huggingface_hub
-python -m nuris_pipeline.cli download-landcover-ai --output-dir data/landcover_ai
+py -3.11 -m pip install huggingface_hub
+py -3.11 -m nuris_pipeline.cli download-landcover-ai --output-dir data/landcover_ai
 ```
 
 Validate configured inputs:
 
 ```powershell
-python -m nuris_pipeline.cli validate-inputs --config configs/v1_inference.yaml
+py -3.11 -m nuris_pipeline.cli validate-inputs --config configs/v1_inference.yaml
 ```
 
 Run inference:
 
 ```powershell
-python -m nuris_pipeline.cli run-inference --config configs/v1_inference.yaml
+py -3.11 -m nuris_pipeline.cli run-inference --config configs/v1_inference.yaml
+```
 
 Prepare a `LandCover.ai` dataset manifest:
 
 ```powershell
-python -m nuris_pipeline.cli prepare-landcover-ai --dataset-root data/landcover_ai --output data/landcover_ai_manifest.json
+py -3.11 -m nuris_pipeline.cli prepare-landcover-ai --dataset-root data/landcover_ai --output data/landcover_ai_manifest.json
 ```
 
 Expected `LandCover.ai` layout:
@@ -63,7 +64,7 @@ data/landcover_ai/
 Prepare split-aware training patches that match the upstream `split.py` workflow:
 
 ```powershell
-python -m nuris_pipeline.cli prepare-landcover-ai-patches --dataset-root data/landcover_ai --output-dir data/landcover_ai_patches --manifest-output data/landcover_ai_patches/manifest.json
+py -3.11 -m nuris_pipeline.cli prepare-landcover-ai-patches --dataset-root data/landcover_ai --output-dir data/landcover_ai_patches --manifest-output data/landcover_ai_patches/manifest.json
 ```
 
 This command:
@@ -73,7 +74,21 @@ This command:
 - writes remapped masks as `<scene>_<k>_m.png`
 - writes a patch manifest with `train`, `validation`, and `test` splits based on the published LandCover.ai split files
 
-Training-ready configuration is staged in [landcover_ai_training.yaml](/D:/Coding/nuris_hackathon/configs/landcover_ai_training.yaml). The repo now stops at dataset preparation and manifest generation; actual model training should be run on the target training device.
+Train the first segmentation model from the prepared manifest:
+
+```powershell
+py -3.11 -m nuris_pipeline.cli train-segmentation --config configs/landcover_ai_training.yaml
+```
+
+This training command:
+
+- reads `data/landcover_ai_patches/manifest.json`
+- trains a 4-class `U-Net` on the `train` split
+- validates on `validation`
+- evaluates on `test`
+- saves `best.pt`, `final.pt`, `metrics.csv`, `metrics.json`, and a config copy under `outputs/checkpoints/`
+
+Training-ready configuration is staged in [landcover_ai_training.yaml](/C:/Users/izimo/Desktop/Amir/nuris_hackathon/configs/landcover_ai_training.yaml).
 
 # nuris_hackathon
 ```

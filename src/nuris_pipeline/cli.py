@@ -66,6 +66,9 @@ def _build_parser() -> argparse.ArgumentParser:
     landcover_patches.add_argument("--output-dir", required=True)
     landcover_patches.add_argument("--manifest-output", required=True)
 
+    training = subparsers.add_parser("train-segmentation")
+    training.add_argument("--config", required=True)
+
     return parser
 
 
@@ -234,6 +237,10 @@ def cli_main(argv: list[str] | None = None) -> int:
         write_landcover_patch_manifest(args.dataset_root, args.output_dir, args.manifest_output)
         LOGGER.info("Prepared %s LandCover.ai patches", len(patches))
         return 0
+    if args.command == "train-segmentation":
+        from nuris_pipeline.training.trainer import train_segmentation
+
+        return train_segmentation(args.config)
 
     parser.error(f"Unknown command {args.command}")
     return 2

@@ -3,10 +3,13 @@ click
 fiona
 geopandas
 huggingface_hub
+imageio
 numpy
 pandas
+pillow
 pyproj
 pyyaml
 rasterio
 scikit-image
 shapely
+torch
