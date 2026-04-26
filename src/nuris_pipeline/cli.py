@@ -4,35 +4,8 @@ import argparse
 import logging
 from pathlib import Path
 
-import geopandas as gpd
-import pandas as pd
-import rasterio
-
 from nuris_pipeline.config import load_config
-from nuris_pipeline.data.landcover_ai import (
-    build_landcover_patch_manifest,
-    discover_landcover_ai_samples,
-    get_landcover_ai_download_spec,
-    prepare_landcover_ai_patches,
-    write_landcover_ai_manifest,
-    write_landcover_patch_manifest,
-)
-from nuris_pipeline.export.geojson_writer import write_geojson
-from nuris_pipeline.export.stats_writer import summarize_by_zone
-from nuris_pipeline.io.manifest import SceneManifest, build_run_manifest, write_manifest
-from nuris_pipeline.io.raster_loader import read_raster_metadata
-from nuris_pipeline.io.vector_loader import load_polygon_layer
 from nuris_pipeline.logging_utils import configure_logging
-from nuris_pipeline.models.inference import run_model_inference
-from nuris_pipeline.models.model_registry import load_model
-from nuris_pipeline.postprocess.filtering import filter_features
-from nuris_pipeline.postprocess.masks import threshold_probability_map
-from nuris_pipeline.postprocess.merge import merge_polygon_features, merge_road_features
-from nuris_pipeline.postprocess.vectorize import vectorize_buildings, vectorize_roads, vectorize_water
-from nuris_pipeline.preprocess.crs import choose_working_crs, reproject_gdf
-from nuris_pipeline.preprocess.tiling import generate_tiles
-from nuris_pipeline.qa.control_sample import build_control_sample
-from nuris_pipeline.qa.metrics import compute_detection_metrics
 
 
 LOGGER = logging.getLogger(__name__)
@@ -73,6 +46,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _scene_manifests(scene_paths: list[str]) -> list[SceneManifest]:
+    from nuris_pipeline.io.manifest import SceneManifest
+    from nuris_pipeline.io.raster_loader import read_raster_metadata
+
     manifests: list[SceneManifest] = []
     for scene_path in scene_paths:
         metadata = read_raster_metadata(scene_path)
@@ -91,6 +67,9 @@ def _scene_manifests(scene_paths: list[str]) -> list[SceneManifest]:
 
 
 def validate_inputs(config_path: str) -> int:
+    from nuris_pipeline.io.vector_loader import load_polygon_layer
+    from nuris_pipeline.preprocess.crs import choose_working_crs
+
     cfg = load_config(config_path)
     aoi = load_polygon_layer(cfg.input.aoi_path)
     scenes = _scene_manifests(cfg.input.scene_paths)
@@ -102,6 +81,24 @@ def validate_inputs(config_path: str) -> int:
 
 
 def run_inference(config_path: str) -> int:
+    import geopandas as gpd
+    import pandas as pd
+    import rasterio
+
+    from nuris_pipeline.export.geojson_writer import write_geojson
+    from nuris_pipeline.export.stats_writer import summarize_by_zone
+    from nuris_pipeline.io.manifest import SceneManifest, build_run_manifest, write_manifest
+    from nuris_pipeline.io.raster_loader import read_raster_metadata
+    from nuris_pipeline.io.vector_loader import load_polygon_layer
+    from nuris_pipeline.models.inference import run_model_inference
+    from nuris_pipeline.models.model_registry import load_model
+    from nuris_pipeline.postprocess.filtering import filter_features
+    from nuris_pipeline.postprocess.masks import threshold_probability_map
+    from nuris_pipeline.postprocess.merge import merge_polygon_features, merge_road_features
+    from nuris_pipeline.postprocess.vectorize import vectorize_buildings, vectorize_roads, vectorize_water
+    from nuris_pipeline.preprocess.crs import choose_working_crs, reproject_gdf
+    from nuris_pipeline.preprocess.tiling import generate_tiles
+
     cfg = load_config(config_path)
     output_dir = Path(cfg.export.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -196,12 +193,21 @@ def cli_main(argv: list[str] | None = None) -> int:
     if args.command == "run-inference":
         return run_inference(args.config)
     if args.command == "build-control-sample":
+        import geopandas as gpd
+
+        from nuris_pipeline.export.geojson_writer import write_geojson
+        from nuris_pipeline.qa.control_sample import build_control_sample
+
         cfg = load_config(args.config)
         features = gpd.read_file(args.features)
         sample = build_control_sample(features, cfg.qa.sample_size, cfg.qa.confidence_bins)
         write_geojson(sample, args.output, epsg=cfg.export.geojson_epsg)
         return 0
     if args.command == "compute-metrics":
+        import geopandas as gpd
+
+        from nuris_pipeline.qa.metrics import compute_detection_metrics
+
         predicted = gpd.read_file(args.predicted)
         truth = gpd.read_file(args.truth)
         metrics = compute_detection_metrics(predicted, truth)
@@ -209,11 +215,15 @@ def cli_main(argv: list[str] | None = None) -> int:
         metrics.to_csv(args.output, index=False)
         return 0
     if args.command == "prepare-landcover-ai":
+        from nuris_pipeline.data.landcover_ai import discover_landcover_ai_samples, write_landcover_ai_manifest
+
         samples = discover_landcover_ai_samples(args.dataset_root)
         write_landcover_ai_manifest(samples, args.output)
         LOGGER.info("Prepared %s LandCover.ai samples", len(samples))
         return 0
     if args.command == "download-landcover-ai":
+        from nuris_pipeline.data.landcover_ai import get_landcover_ai_download_spec
+
         try:
             from huggingface_hub import snapshot_download
         except ModuleNotFoundError as exc:
@@ -233,6 +243,8 @@ def cli_main(argv: list[str] | None = None) -> int:
         LOGGER.info("Downloaded LandCover.ai to %s", args.output_dir)
         return 0
     if args.command == "prepare-landcover-ai-patches":
+        from nuris_pipeline.data.landcover_ai import prepare_landcover_ai_patches, write_landcover_patch_manifest
+
         patches = prepare_landcover_ai_patches(args.dataset_root, args.output_dir)
         write_landcover_patch_manifest(args.dataset_root, args.output_dir, args.manifest_output)
         LOGGER.info("Prepared %s LandCover.ai patches", len(patches))
