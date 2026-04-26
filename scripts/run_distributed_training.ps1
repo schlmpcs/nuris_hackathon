@@ -38,4 +38,7 @@ Get-Content $envPath | ForEach-Object {
 
 Set-Location $repoRoot
 [System.Environment]::SetEnvironmentVariable("PYTHONPATH", $srcPath, "Process")
+if (-not $env:GLOO_SOCKET_IFNAME) {
+    [System.Environment]::SetEnvironmentVariable("GLOO_SOCKET_IFNAME", "Ethernet", "Process")
+}
 py -3.11 -m nuris_pipeline.cli train-segmentation --config $Config

@@ -376,6 +376,7 @@ def initialize_distributed_training() -> DistributedTrainingContext:
         master_port = os.environ.get("MASTER_PORT")
         if not master_addr or not master_port:
             raise ValueError("Distributed training requires MASTER_ADDR and MASTER_PORT to be set")
+        configure_distributed_network_interface(backend)
         init_method = f"tcp://{master_addr}:{master_port}?use_libuv=0"
         dist.init_process_group(
             backend=backend,
@@ -395,6 +396,15 @@ def resolve_distributed_backend() -> str:
     if platform.system() == "Windows":
         return "gloo"
     return "nccl" if torch.cuda.is_available() else "gloo"
+
+
+def configure_distributed_network_interface(backend: str) -> None:
+    if backend != "gloo":
+        return
+    if os.environ.get("GLOO_SOCKET_IFNAME"):
+        return
+    if platform.system() == "Windows":
+        os.environ["GLOO_SOCKET_IFNAME"] = "Ethernet"
 
 
 def create_sampler(
