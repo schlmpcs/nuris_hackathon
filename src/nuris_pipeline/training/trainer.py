@@ -9,12 +9,13 @@ from pathlib import Path
 import platform
 import random
 import shutil
+from datetime import timedelta
 from typing import Any
 
 import numpy as np
 import torch
 import torch.distributed as dist
-from torch import nn
+from torch import nn, distributed
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
@@ -377,12 +378,22 @@ def initialize_distributed_training() -> DistributedTrainingContext:
         if not master_addr or not master_port:
             raise ValueError("Distributed training requires MASTER_ADDR and MASTER_PORT to be set")
         configure_distributed_network_interface(backend)
-        init_method = f"tcp://{master_addr}:{master_port}?use_libuv=0"
+        store_host = "0.0.0.0" if rank == 0 else master_addr
+        store = distributed.TCPStore(
+            host_name=store_host,
+            port=int(master_port),
+            world_size=world_size,
+            is_master=rank == 0,
+            timeout=timedelta(seconds=300),
+            wait_for_workers=True,
+            multi_tenant=False,
+            use_libuv=False,
+        )
         dist.init_process_group(
             backend=backend,
             rank=rank,
             world_size=world_size,
-            init_method=init_method,
+            store=store,
         )
     return DistributedTrainingContext(enabled=enabled, rank=rank, world_size=world_size, local_rank=local_rank)
 
