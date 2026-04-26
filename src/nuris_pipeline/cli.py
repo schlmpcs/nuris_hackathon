@@ -9,6 +9,14 @@ import pandas as pd
 import rasterio
 
 from nuris_pipeline.config import load_config
+from nuris_pipeline.data.landcover_ai import (
+    build_landcover_patch_manifest,
+    discover_landcover_ai_samples,
+    get_landcover_ai_download_spec,
+    prepare_landcover_ai_patches,
+    write_landcover_ai_manifest,
+    write_landcover_patch_manifest,
+)
 from nuris_pipeline.export.geojson_writer import write_geojson
 from nuris_pipeline.export.stats_writer import summarize_by_zone
 from nuris_pipeline.io.manifest import SceneManifest, build_run_manifest, write_manifest
@@ -45,6 +53,18 @@ def _build_parser() -> argparse.ArgumentParser:
         if name == "build-control-sample":
             sub.add_argument("--features", required=True)
             sub.add_argument("--output", required=True)
+
+    landcover = subparsers.add_parser("prepare-landcover-ai")
+    landcover.add_argument("--dataset-root", required=True)
+    landcover.add_argument("--output", required=True)
+
+    landcover_download = subparsers.add_parser("download-landcover-ai")
+    landcover_download.add_argument("--output-dir", required=True)
+
+    landcover_patches = subparsers.add_parser("prepare-landcover-ai-patches")
+    landcover_patches.add_argument("--dataset-root", required=True)
+    landcover_patches.add_argument("--output-dir", required=True)
+    landcover_patches.add_argument("--manifest-output", required=True)
 
     return parser
 
@@ -184,6 +204,35 @@ def cli_main(argv: list[str] | None = None) -> int:
         metrics = compute_detection_metrics(predicted, truth)
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)
         metrics.to_csv(args.output, index=False)
+        return 0
+    if args.command == "prepare-landcover-ai":
+        samples = discover_landcover_ai_samples(args.dataset_root)
+        write_landcover_ai_manifest(samples, args.output)
+        LOGGER.info("Prepared %s LandCover.ai samples", len(samples))
+        return 0
+    if args.command == "download-landcover-ai":
+        try:
+            from huggingface_hub import snapshot_download
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(
+                "download-landcover-ai requires huggingface_hub. Install it with "
+                "'python -m pip install huggingface_hub'."
+            ) from exc
+
+        spec = get_landcover_ai_download_spec()
+        snapshot_download(
+            repo_id=spec["repo_id"],
+            repo_type=spec["repo_type"],
+            allow_patterns=spec["allow_patterns"],
+            local_dir=args.output_dir,
+            local_dir_use_symlinks=False,
+        )
+        LOGGER.info("Downloaded LandCover.ai to %s", args.output_dir)
+        return 0
+    if args.command == "prepare-landcover-ai-patches":
+        patches = prepare_landcover_ai_patches(args.dataset_root, args.output_dir)
+        write_landcover_patch_manifest(args.dataset_root, args.output_dir, args.manifest_output)
+        LOGGER.info("Prepared %s LandCover.ai patches", len(patches))
         return 0
 
     parser.error(f"Unknown command {args.command}")

@@ -2,6 +2,7 @@ affine
 click
 fiona
 geopandas
+huggingface_hub
 numpy
 pandas
 pyproj

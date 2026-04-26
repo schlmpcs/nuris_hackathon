@@ -1,0 +1,23 @@
+dataset:
+  name: landcover_ai
+  dataset_root: data/landcover_ai
+  patches_root: data/landcover_ai_patches
+  manifest_path: data/landcover_ai_patches/manifest.json
+  tile_size: 512
+  classes:
+    0: background
+    1: building
+    2: water
+    3: road
+
+training:
+  model_name: deeplabv3_resnet50
+  encoder_weights: imagenet
+  batch_size: 8
+  num_workers: 4
+  learning_rate: 0.0001
+  epochs: 20
+  device: cuda
+
+export:
+  checkpoint_dir: outputs/checkpoints

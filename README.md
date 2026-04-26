@@ -23,6 +23,13 @@ Install dependencies:
 python -m pip install -r requirements.txt
 ```
 
+Download `LandCover.ai` from Hugging Face:
+
+```powershell
+python -m pip install huggingface_hub
+python -m nuris_pipeline.cli download-landcover-ai --output-dir data/landcover_ai
+```
+
 Validate configured inputs:
 
 ```powershell
@@ -33,6 +40,42 @@ Run inference:
 
 ```powershell
 python -m nuris_pipeline.cli run-inference --config configs/v1_inference.yaml
+
+Prepare a `LandCover.ai` dataset manifest:
+
+```powershell
+python -m nuris_pipeline.cli prepare-landcover-ai --dataset-root data/landcover_ai --output data/landcover_ai_manifest.json
+```
+
+Expected `LandCover.ai` layout:
+
+```text
+data/landcover_ai/
+  images/
+  masks/
+  train.txt
+  val.txt
+  test.txt
+```
+
+`LandCover.ai` uses `EPSG:2180` and class ids `building=1`, `woodland=2`, `water=3`, `road=4`. For NURIS v1, the dataset integration remaps masks to `background=0`, `building=1`, `water=2`, `road=3`, and drops `woodland`.
+
+Prepare split-aware training patches that match the upstream `split.py` workflow:
+
+```powershell
+python -m nuris_pipeline.cli prepare-landcover-ai-patches --dataset-root data/landcover_ai --output-dir data/landcover_ai_patches --manifest-output data/landcover_ai_patches/manifest.json
+```
+
+This command:
+
+- cuts raw orthophotos into non-overlapping `512x512` patches
+- writes images as `<scene>_<k>.jpg`
+- writes remapped masks as `<scene>_<k>_m.png`
+- writes a patch manifest with `train`, `validation`, and `test` splits based on the published LandCover.ai split files
+
+Training-ready configuration is staged in [landcover_ai_training.yaml](/D:/Coding/nuris_hackathon/configs/landcover_ai_training.yaml). The repo now stops at dataset preparation and manifest generation; actual model training should be run on the target training device.
+
+# nuris_hackathon
 ```
 
 ## Outputs
